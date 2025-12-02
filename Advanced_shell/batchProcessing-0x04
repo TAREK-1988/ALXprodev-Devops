@@ -2,11 +2,15 @@
 # Script: batchProcessing-0x04
 # Objective:
 #   - Fetch data for multiple Pokémon in parallel using background processes.
-#   - Wait for all background jobs to finish before exiting.
+#   - Handle background processes properly and wait for all to complete.
+#   - Use kill to clean up background jobs if the script is interrupted.
+#
+# Pokémon list:
+# ["bulbasaur", "ivysaur", "venusaur", "charmander", "charmeleon"]
 
 set -u -o pipefail
 
-POKEMON_LIST=("Bulbasaur" "Ivysaur" "Venusaur" "Charmander" "Charmeleon")
+POKEMON_LIST=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
 API_BASE_URL="https://pokeapi.co/api/v2/pokemon"
 OUTPUT_DIR="pokemon_data"
 ERROR_FILE="errors.txt"
@@ -14,13 +18,26 @@ ERROR_FILE="errors.txt"
 mkdir -p "$OUTPUT_DIR"
 touch "$ERROR_FILE"
 
+# Array to hold background process IDs
+pids=()
+
+# Cleanup function to kill background jobs if needed
+cleanup() {
+  if ((${#pids[@]} > 0)); then
+    # Use kill to terminate any remaining background processes
+    kill "${pids[@]}" 2>/dev/null || true
+  fi
+}
+
+# Trap common termination signals and run cleanup
+trap cleanup INT TERM
+
 fetch_pokemon() {
   local name="$1"
-  local name_lc="${name,,}"
-  local url="${API_BASE_URL}/${name_lc}"
-  local output_file="${OUTPUT_DIR}/${name_lc}.json"
+  local url="${API_BASE_URL}/${name}"
+  local output_file="${OUTPUT_DIR}/${name}.json"
 
-  echo "[PID $$] Fetching data for ${name_lc}..."
+  echo "[PID $$] Fetching data for ${name}..."
 
   local http_status
   http_status="$(curl -sS -w "%{http_code}" -o "$output_file" "$url" 2>>"$ERROR_FILE" || echo "000")"
@@ -34,18 +51,17 @@ fetch_pokemon() {
   fi
 }
 
-pids=()
-
-# Launch each fetch in the background
+# Launch each fetch operation in the background
 for pokemon in "${POKEMON_LIST[@]}"; do
   fetch_pokemon "$pokemon" &
   pids+=("$!")
 done
 
-# Wait for all background jobs
+# Wait for all background jobs to complete
 for pid in "${pids[@]}"; do
   wait "$pid"
 done
 
 echo "All parallel fetch operations have completed."
+
 exit 0
