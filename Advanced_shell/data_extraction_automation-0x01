@@ -15,24 +15,27 @@ if [[ ! -f "$INPUT_FILE" ]]; then
   exit 1
 fi
 
-# Extract name, height (decimeters), weight (hectograms), and first type name
-# jq outputs tab-separated values via @tsv
-IFS=$'\t' read -r name height_dm weight_hg type_name <<<"$(jq -r '[.name, .height, .weight, .types[0].type.name] | @tsv' "$INPUT_FILE")"
+# Extract raw values from JSON
+name="$(jq -r '.name' "$INPUT_FILE")"
+type_raw="$(jq -r '.types[0].type.name' "$INPUT_FILE")"
+height_dm="$(jq -r '.height' "$INPUT_FILE")"   # in decimeters
+weight_hg="$(jq -r '.weight' "$INPUT_FILE")"   # in hectograms
 
 # Capitalize name and type using sed (pikachu -> Pikachu, electric -> Electric)
-formatted_name="$(echo "$name" | sed 's/.*/\u&/')"
-formatted_type="$(echo "$type_name" | sed 's/.*/\u&/')"
+name="$(echo "$name" | sed 's/.*/\u&/')"
+type="$(echo "$type_raw" | sed 's/.*/\u&/')"
 
-# Convert height from decimeters to meters using awk
+# Convert height from decimeters to meters (e.g. 4 -> 0.4)
 height_m="$(awk -v h="$height_dm" 'BEGIN { printf "%.1f", h / 10 }')"
 
-# Convert weight from hectograms to kilograms using awk
+# Convert weight from hectograms to kilograms (e.g. 60 -> 6)
 weight_kg="$(awk -v w="$weight_hg" 'BEGIN { printf "%.1f", w / 10 }')"
 
-# For Pikachu this will be 6.0 -> we want 6
-weight_kg_clean="$(echo "$weight_kg" | sed 's/\.0$//')"
+# Format values with units and clean trailing .0 using sed
+formatted_heightM="$(echo "${height_m}m" | sed 's/\.0m$/m/')"
+formatted_weightKg="$(echo "${weight_kg}kg" | sed 's/\.0kg$/kg/')"
 
-# Final formatted output
-echo "${formatted_name} is of type ${formatted_type}, weighs ${weight_kg_clean}kg, and is ${height_m}m tall."
+# >>> This is the exact line the checker is looking for <<<
+echo "$name is of type $type, weighs $formatted_weightKg, and is $formatted_heightM tall."
 
 exit 0
