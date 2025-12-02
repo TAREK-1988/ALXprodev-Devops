@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Script: summaryData-0x03
 # Objective:
-#   - Read all JSON files from pokemon_data/
-#   - Extract name, height, weight
+#   - Read all JSON files generated in task 2 from pokemon_data/
+#   - Extract name, height, and weight for each Pokémon
 #   - Generate a CSV report
-#   - Compute average height and weight using awk
+#   - Use awk to calculate the average height and weight
+#   - Also use sed for basic text/number formatting
 
 set -u -o pipefail
 
@@ -30,12 +31,16 @@ echo "Name,Height (m),Weight (kg)" > "$REPORT_FILE"
 
 # Process each JSON file
 for json_file in "${json_files[@]}"; do
-  # Extract name, height (decimeters), weight (hectograms)
+  # Extract name, height (decimeters), weight (hectograms) using jq
   read -r name height_dm weight_hg <<<"$(jq -r '[.name, .height, .weight] | @tsv' "$json_file")"
 
-  # Convert height to meters and weight to kg
+  # Convert height to meters and weight to kilograms using awk
   height_m="$(awk -v h="$height_dm" 'BEGIN { printf "%.1f", h / 10 }')"
   weight_kg="$(awk -v w="$weight_hg" 'BEGIN { printf "%.1f", w / 10 }')"
+
+  # Use sed to remove trailing .0 (e.g., 2.0 -> 2, 6.0 -> 6)
+  height_m="$(echo "$height_m" | sed 's/\.0$//')"
+  weight_kg="$(echo "$weight_kg" | sed 's/\.0$//')"
 
   # Capitalize first letter of name
   formatted_name="${name^}"
@@ -46,7 +51,7 @@ done
 echo "CSV Report generated at: ${REPORT_FILE}"
 echo
 
-# Calculate averages using awk
+# Use awk to calculate averages from the CSV file
 awk -F',' '
   NR > 1 {
     height_sum += $2
