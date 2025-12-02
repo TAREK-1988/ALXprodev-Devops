@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Script: data_extraction_automation-0x01
+# Objective:
+#   - Read data.json created in task 0
+#   - Extract Pikachu's name, height, weight, and type
+#   - Print: "Pikachu is of type Electric, weighs 6kg, and is 0.4m tall."
+#   - Use jq, awk, and sed for processing
+
+set -u -o pipefail
+
+INPUT_FILE="data.json"
+
+if [[ ! -f "$INPUT_FILE" ]]; then
+  echo "Error: ${INPUT_FILE} not found. Run ./apiAutomation-0x00 first."
+  exit 1
+fi
+
+# Extract name, height (decimeters), weight (hectograms), and first type name
+# jq outputs tab-separated values via @tsv
+IFS=$'\t' read -r name height_dm weight_hg type_name <<<"$(jq -r '[.name, .height, .weight, .types[0].type.name] | @tsv' "$INPUT_FILE")"
+
+# Capitalize name and type using sed (pikachu -> Pikachu, electric -> Electric)
+formatted_name="$(echo "$name" | sed 's/.*/\u&/')"
+formatted_type="$(echo "$type_name" | sed 's/.*/\u&/')"
+
+# Convert height from decimeters to meters using awk
+height_m="$(awk -v h="$height_dm" 'BEGIN { printf "%.1f", h / 10 }')"
+
+# Convert weight from hectograms to kilograms using awk
+weight_kg="$(awk -v w="$weight_hg" 'BEGIN { printf "%.1f", w / 10 }')"
+
+# For Pikachu this will be 6.0 -> we want 6
+weight_kg_clean="$(echo "$weight_kg" | sed 's/\.0$//')"
+
+# Final formatted output
+echo "${formatted_name} is of type ${formatted_type}, weighs ${weight_kg_clean}kg, and is ${height_m}m tall."
+
+exit 0
