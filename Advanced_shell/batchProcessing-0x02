@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Script: batchProcessing-0x02
+# Objective:
+#   - Fetch data for multiple Pokémon and save each to its own JSON file.
+#   - Implement retry logic (up to 3 attempts) and log failures to errors.txt.
+
+set -u -o pipefail
+
+POKEMON_LIST=("Bulbasaur" "Ivysaur" "Venusaur" "Charmander" "Charmeleon")
+API_BASE_URL="https://pokeapi.co/api/v2/pokemon"
+OUTPUT_DIR="pokemon_data"
+ERROR_FILE="errors.txt"
+MAX_RETRIES=3
+
+mkdir -p "$OUTPUT_DIR"
+touch "$ERROR_FILE"
+
+fetch_with_retry() {
+  local name="$1"
+  local name_lc="${name,,}"  # lowercase version
+  local url="${API_BASE_URL}/${name_lc}"
+  local output_file="${OUTPUT_DIR}/${name_lc}.json"
+
+  echo "Fetching data for ${name_lc}..."
+
+  local attempt=1
+  local http_status="000"
+
+  while (( attempt <= MAX_RETRIES )); do
+    http_status="$(curl -sS -w "%{http_code}" -o "$output_file" "$url" 2>>"$ERROR_FILE" || echo "000")"
+
+    if [[ "$http_status" == "200" ]]; then
+      echo "Saved data to ${output_file} ✅"
+      return 0
+    fi
+
+    echo "Attempt ${attempt} failed for ${name} (HTTP ${http_status})." >&2
+    (( attempt++ ))
+    sleep 2  # small delay before retry
+  done
+
+  # All attempts failed
+  rm -f "$output_file"
+  echo "$(date -Iseconds) - Failed to fetch ${name} after ${MAX_RETRIES} attempts (last HTTP ${http_status}). URL: ${url}" >> "$ERROR_FILE"
+  echo "Skipping ${name} due to repeated failures."
+  return 1
+}
+
+# Main loop
+for pokemon in "${POKEMON_LIST[@]}"; do
+  fetch_with_retry "$pokemon"
+  # Additional delay to be gentle with the API
+  sleep 1
+done
+
+echo "Batch processing completed."
+exit 0
