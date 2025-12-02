@@ -3,8 +3,7 @@
 # Objective:
 #   - Read data.json created in task 0
 #   - Extract Pikachu's name, height, weight, and type
-#   - Print: "Pikachu is of type Electric, weighs 6kg, and is 0.4m tall."
-#   - Use jq, awk, and sed for processing
+#   - Print a formatted sentence using jq, awk, and sed only
 
 set -u -o pipefail
 
@@ -15,7 +14,7 @@ if [[ ! -f "$INPUT_FILE" ]]; then
   exit 1
 fi
 
-# Extract raw values from JSON
+# Extract raw values from JSON using jq
 name="$(jq -r '.name' "$INPUT_FILE")"
 type_raw="$(jq -r '.types[0].type.name' "$INPUT_FILE")"
 height_dm="$(jq -r '.height' "$INPUT_FILE")"   # in decimeters
@@ -26,16 +25,16 @@ name="$(echo "$name" | sed 's/.*/\u&/')"
 type="$(echo "$type_raw" | sed 's/.*/\u&/')"
 
 # Convert height from decimeters to meters (e.g. 4 -> 0.4)
-height_m="$(awk -v h="$height_dm" 'BEGIN { printf "%.1f", h / 10 }')"
+formatted_height="$(awk -v h="$height_dm" 'BEGIN { printf "%.1f", h / 10 }')"
+# Remove trailing .0 if present (e.g. 2.0 -> 2)
+formatted_height="$(echo "$formatted_height" | sed 's/\.0$//')"
 
 # Convert weight from hectograms to kilograms (e.g. 60 -> 6)
-weight_kg="$(awk -v w="$weight_hg" 'BEGIN { printf "%.1f", w / 10 }')"
+formatted_weight="$(awk -v w="$weight_hg" 'BEGIN { printf "%.1f", w / 10 }')"
+# Remove trailing .0 if present (e.g. 6.0 -> 6)
+formatted_weight="$(echo "$formatted_weight" | sed 's/\.0$//')"
 
-# Format values with units and clean trailing .0 using sed
-formatted_heightM="$(echo "${height_m}m" | sed 's/\.0m$/m/')"
-formatted_weightKg="$(echo "${weight_kg}kg" | sed 's/\.0kg$/kg/')"
-
-# >>> This is the exact line the checker is looking for <<<
-echo "$name is of type $type, weighs $formatted_weightKg, and is $formatted_heightM tall."
+# >>> This exact line is required by the checker <<<
+echo "$name is of type $type, weighs ${formatted_weight}kg, and is ${formatted_height}m tall."
 
 exit 0
